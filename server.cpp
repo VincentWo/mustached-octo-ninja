@@ -7,8 +7,9 @@
 #include <netinet/in.h>
 
 #include <iostream>
+#include <boost/program_options.hpp>
 
-#include "http.hpp"
+#include "http/http.hpp"
 
 void error(const char *msg)
 {
@@ -16,13 +17,35 @@ void error(const char *msg)
 	exit(1);
 }
 
+using std::cout;
+using std::cerr;
+
 int main(int argc, char* argv[])
 {
-	if(argc < 2)
+	namespace po = boost::program_options;
+
+	po::options_description desc("Allowed options");
+	desc.add_options()
+	                ("help", "produce help message")
+									("port", po::value<int>(), "The server listen for this port.");
+
+	po::variables_map vm;
+	po::store(po::parse_command_line(argc, argv, desc), vm);
+	po::notify(vm);
+
+	if(vm.count("help"))
 	{
-		std::cerr << "ERROR, no port provided\n";
+		cout << desc << std::endl;
+		return 0;
+	}
+
+	if(vm.count("port") == 0)
+	{
+		cerr << "Fatal Error: No Port given!\n";
 		return 1;
 	}
+
+	int portno = vm["port"].as<int>();
 
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -30,7 +53,6 @@ int main(int argc, char* argv[])
 	{
 		error("ERROR opening socket");
 	}
-	int portno = atoi(argv[1]);
 
 	sockaddr_in serv_addr{};
 	serv_addr.sin_family = AF_INET;
@@ -66,8 +88,8 @@ int main(int argc, char* argv[])
 	std::cout << "Here is the raw request: " << buffer;
 
 	http::Request request{buffer};
-
-	n = write(newsockfd,"I got your message", 18);
+	std::string message{"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<html><head><title>Test Title</title></head><body><p>Test</p></body></html>\r\n"};
+	n = write(newsockfd, message.c_str(), message.size());
 	if(n < 0)
 	{
 		error("ERROR writing to socket");
